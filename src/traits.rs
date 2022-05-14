@@ -1053,6 +1053,10 @@ pub trait Slice<R> {
   fn slice(&self, range: R) -> Self;
 }
 
+/// 定义声明宏：获取切片
+/// fn slice(&self, range: T) -> Self {
+///       &self[range]
+/// }
 macro_rules! impl_fn_slice {
   ( $ty:ty ) => {
     fn slice(&self, range: $ty) -> Self {
@@ -1061,6 +1065,16 @@ macro_rules! impl_fn_slice {
   };
 }
 
+/// 声明宏：
+/// case-1:
+/// impl <'a, T> Slice<T> for &'a [T] {
+///   impl_fn_slice(T);
+///}
+/// case-2:
+/// impl <'a> Slice<T> for &'a T {
+///    impl_fn_slice(T);
+/// }
+///
 macro_rules! slice_range_impl {
   ( [ $for_type:ident ], $ty:ty ) => {
     impl<'a, $for_type> Slice<$ty> for &'a [$for_type] {
@@ -1089,6 +1103,7 @@ macro_rules! slice_ranges_impl {
   };
 }
 
+// str 和 T类型
 slice_ranges_impl! {str}
 slice_ranges_impl! {[T]}
 
