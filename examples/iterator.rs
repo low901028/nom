@@ -8,7 +8,7 @@ use nom::sequence::{separated_pair, terminated};
 use nom::IResult;
 
 fn main() {
-  let mut data = "abcabcabcabc";
+  let mut data = "abcabcabcabcefg";
 
   fn parser(i: &str) -> IResult<&str, &str> {
     tag("abc")(i)

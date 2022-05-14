@@ -701,20 +701,26 @@ impl<'a> InputTakeAtPosition for &'a str {
   }
 }
 
+/// 比较两个内容是否成功： 主要是为了Compare trait的结果表示
 /// Indicates whether a comparison was successful, an error, or
 /// if more data was needed
 #[derive(Debug, PartialEq)]
 pub enum CompareResult {
   /// Comparison was successful
+  /// 比较成功
   Ok,
   /// We need more data to be sure
+  /// 结果比较不完整(需要更多些数据来验证)
   Incomplete,
   /// Comparison failed
+  /// 比较结果失败
   Error,
 }
 
+/// 用于内容的比较： 结果见CompareResult
 /// Abstracts comparison operations
 pub trait Compare<T> {
+  /// 自身的内容和指定的内容t比较是否完全匹配
   /// Compares self to another value for equality
   fn compare(&self, t: T) -> CompareResult;
   /// Compares self to another value for equality
@@ -727,6 +733,7 @@ pub trait Compare<T> {
   fn compare_no_case(&self, t: T) -> CompareResult;
 }
 
+/// 主要是为了比较进行字符串比较时都采用字母小写的方式进行比较
 fn lowercase_byte(c: u8) -> u8 {
   match c {
     b'A'..=b'Z' => c - b'A' + b'a',
@@ -734,17 +741,21 @@ fn lowercase_byte(c: u8) -> u8 {
   }
 }
 
+/// 用于当前内容和指定内容通过字节方式的比较:
+/// 主要是获取比较第一次不同的位置：区分大小写
 impl<'a, 'b> Compare<&'b [u8]> for &'a [u8] {
   #[inline(always)]
   fn compare(&self, t: &'b [u8]) -> CompareResult {
+    // 通过zip将两个比较内容iterator进行对齐，并获取两者首次字节不匹配的位置
+    // 一般来说是不存在的：self是全部内容，t则是self表示的全部内容的tag部分，正常情况pos=None；否则是error
     let pos = self.iter().zip(t.iter()).position(|(a, b)| a != b);
 
     match pos {
-      Some(_) => CompareResult::Error,
+      Some(_) => CompareResult::Error, // 比较结果error
       None => {
-        if self.len() >= t.len() {
+        if self.len() >= t.len() {  // 需要确保self应该包含t内容
           CompareResult::Ok
-        } else {
+        } else {                    // tag的内容和self全部内容比较需要更多的信息
           CompareResult::Incomplete
         }
       }
@@ -767,6 +778,8 @@ impl<'a, 'b> Compare<&'b [u8]> for &'a [u8] {
     */
   }
 
+  /// 比较当前内容和测试内容任意一个字节不同：不区分大小写
+  /// 主要通过比较内容任意不同位置的字节(全部采用小写字母处理)
   #[inline(always)]
   fn compare_no_case(&self, t: &'b [u8]) -> CompareResult {
     if self
@@ -783,6 +796,7 @@ impl<'a, 'b> Compare<&'b [u8]> for &'a [u8] {
   }
 }
 
+///
 impl<
     T: InputLength + InputIter<Item = u8> + InputTake + UnspecializedInput,
     O: InputLength + InputIter<Item = u8> + InputTake,
@@ -823,6 +837,7 @@ impl<
   }
 }
 
+/// str和[u8]进行比较
 impl<'a, 'b> Compare<&'b str> for &'a [u8] {
   #[inline(always)]
   fn compare(&self, t: &'b str) -> CompareResult {
@@ -834,6 +849,7 @@ impl<'a, 'b> Compare<&'b str> for &'a [u8] {
   }
 }
 
+/// str和str进行比较
 impl<'a, 'b> Compare<&'b str> for &'a str {
   #[inline(always)]
   fn compare(&self, t: &'b str) -> CompareResult {
@@ -861,6 +877,7 @@ impl<'a, 'b> Compare<&'b str> for &'a str {
   }
 }
 
+/// [u8]和str比较
 impl<'a, 'b> Compare<&'b [u8]> for &'a str {
   #[inline(always)]
   fn compare(&self, t: &'b [u8]) -> CompareResult {
@@ -872,94 +889,116 @@ impl<'a, 'b> Compare<&'b [u8]> for &'a str {
   }
 }
 
+/// 从当前内容中获取指定的token
 /// Look for a token in self
 pub trait FindToken<T> {
   /// Returns true if self contains the token
   fn find_token(&self, token: T) -> bool;
 }
 
+/// [u8]的实现查找指定的Token
+/// 使用memchar查找当前内容包括的第一个匹配的字节
 impl<'a> FindToken<u8> for &'a [u8] {
   fn find_token(&self, token: u8) -> bool {
     memchr::memchr(token, self).is_some()
   }
 }
 
+/// str的实现查找指定的token
 impl<'a> FindToken<u8> for &'a str {
   fn find_token(&self, token: u8) -> bool {
     self.as_bytes().find_token(token)
   }
 }
 
+/// [u8]实现查找指定的token(以&u8格式)
 impl<'a, 'b> FindToken<&'a u8> for &'b [u8] {
   fn find_token(&self, token: &u8) -> bool {
     self.find_token(*token)
   }
 }
 
+/// str实现查找指定的token(以&u8格式)
 impl<'a, 'b> FindToken<&'a u8> for &'b str {
   fn find_token(&self, token: &u8) -> bool {
     self.as_bytes().find_token(token)
   }
 }
 
+/// [u8]实现查找指定的token(以char格式)
 impl<'a> FindToken<char> for &'a [u8] {
   fn find_token(&self, token: char) -> bool {
     self.iter().any(|i| *i == token as u8)
   }
 }
 
+/// str实现查找指定的token(以char格式)
 impl<'a> FindToken<char> for &'a str {
   fn find_token(&self, token: char) -> bool {
     self.chars().any(|i| i == token)
   }
 }
 
+/// [char]实现查找指定的token(以char格式)
 impl<'a> FindToken<char> for &'a [char] {
   fn find_token(&self, token: char) -> bool {
     self.iter().any(|i| *i == token)
   }
 }
 
+/// [u8]实现查找指定的token(以&char格式)
 impl<'a, 'b> FindToken<&'a char> for &'b [char] {
   fn find_token(&self, token: &char) -> bool {
     self.find_token(*token)
   }
 }
 
+/// 从当前内容查找指定的子串
 /// Look for a substring in self
 pub trait FindSubstring<T> {
+  /// 存在符合要求字串的字节位置
   /// Returns the byte position of the substring if it is found
   fn find_substring(&self, substr: T) -> Option<usize>;
 }
 
+/// &[u8]实现查找指定子串(以&[u8])
 impl<'a, 'b> FindSubstring<&'b [u8]> for &'a [u8] {
   fn find_substring(&self, substr: &'b [u8]) -> Option<usize> {
-    if substr.len() > self.len() {
+    if substr.len() > self.len() { // 当子串长度超过被查找的内容 是没有符合要求的子串存在
       return None;
     }
 
-    let (&substr_first, substr_rest) = match substr.split_first() {
+    // ？？？将需要查找的子串进行拆分两部分： 首字节和其余部分；
+    // 能够通过首字节快速验证进行当前查找内容是否需要完全匹配所有的子串内容
+    let (&substr_first, substr_rest) = match substr.split_first() { // split子串的第一个元素和剩余其他元素
       Some(split) => split,
       // an empty substring is found at position 0
       // This matches the behavior of str.find("").
-      None => return Some(0),
+      None => return Some(0), // 默认情况空子串认为位置=0
     };
 
-    if substr_rest.is_empty() {
+    // case-1： 当只有首字节部分时
+    if substr_rest.is_empty() { // 当查找的子串只包括一个字节，则直接通过memchr::memchr对被查找的内容(字节切片)进行查找
       return memchr::memchr(substr_first, self);
     }
 
+    // case-2: 包含其余部分子串内容
+    // 记录查找子串的首字节在被查找内容的位置； 默认从0开始
     let mut offset = 0;
+    // 将被查找内容去掉和子串剩余其他部分的长度： &self[..self.len() - substr_rest.len()]
+    // 在子串首字节和&self[..self.len() - substr_rest.len()]进行比较 是否存在
     let haystack = &self[..self.len() - substr_rest.len()];
 
+    // 通过移动offset获取&self[..self.len() - substr_rest.len()]中内容，是否存在子串首字节；
+    // 若是存在的话， 在比较最后匹配的position直到子串剩余部分内容长度是否和子串其他部分内容匹配； 那么最后的匹配位置则就是我们需要的位置
     while let Some(position) = memchr::memchr(substr_first, &haystack[offset..]) {
-      offset += position;
-      let next_offset = offset + 1;
-      if &self[next_offset..][..substr_rest.len()] == substr_rest {
-        return Some(offset);
+      offset += position;   // 不停迭代变换满足子串首字节的新位置offset
+      let next_offset = offset + 1; // 获取最新子串首字节匹配位置position下一个位置
+      if &self[next_offset..][..substr_rest.len()] == substr_rest { // 判断从最新匹配子串首字节位置开始直至长度=substr_rest.len()这段内容和子串其他部分是否匹配
+        return Some(offset);  // 返回满足需要最新匹配位置
       }
 
-      offset = next_offset;
+      offset = next_offset; // 不停移动offset直到最后一个满足：匹配子串首字节的位置position结束
     }
 
     None
@@ -979,25 +1018,31 @@ impl<'a, 'b> FindSubstring<&'b str> for &'a str {
   }
 }
 
+/// 集成str的parse
 /// Used to integrate `str`'s `parse()` method
 pub trait ParseTo<R> {
+  // 是通过parse()来完成解析操作；会将字节切片转为str在调用parse()
   /// Succeeds if `parse()` succeeded. The byte slice implementation
   /// will first convert it to a `&str`, then apply the `parse()` function
   fn parse_to(&self) -> Option<R>;
 }
 
+/// &[u8]实现ParseTo trait
 impl<'a, R: FromStr> ParseTo<R> for &'a [u8] {
   fn parse_to(&self) -> Option<R> {
+    // 将[u8]采用utf8格式编码转为str再调用parse()
     from_utf8(self).ok().and_then(|s| s.parse().ok())
   }
 }
 
+/// &str实现ParseTo trait: 直接调用parse()来完成
 impl<'a, R: FromStr> ParseTo<R> for &'a str {
   fn parse_to(&self) -> Option<R> {
     self.parse().ok()
   }
 }
 
+/// 支持切片使用range，也是基于Index来完成的
 /// Slicing operations using ranges.
 ///
 /// This trait is loosely based on
