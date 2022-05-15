@@ -14,6 +14,14 @@ use crate::lib::std::string::String;
 #[cfg(feature = "alloc")]
 use crate::lib::std::vec::Vec;
 
+/// 提供了输入类型需要实现的trait，以便nom能够将这些应用到内部组合器conbinators中
+/// InputLength: 计算输入内容的长度
+/// Offset： 计算输入内容某个item的offset
+/// AsBytes：输入内容能够以byte形式呈现
+/// AsChar：输入内容类型以char形式呈现
+/// 等等
+
+
 /// 计算input的长度
 /// Abstract method to calculate the input length
 pub trait InputLength {
