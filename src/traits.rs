@@ -464,15 +464,23 @@ impl<'a> InputTake for &'a str {
 /// `InputTakeAtPosition` (like the one for `&[u8]`).
 pub trait UnspecializedInput {}
 
+/// 主要用于提取当前输入input，直至提供的函数返回true为止
+/// 也是nom中大部分基础解析器都实现了该trait
+/// 底层功能还是基于InputIter.position()来获取字节内容item的位置
+///
 /// Methods to take as much input as possible until the provided function returns true for the current element.
 ///
 /// A large part of nom's basic parsers are built using this trait.
 pub trait InputTakeAtPosition: Sized {
+  /// 当前的输入内容item的类型
   /// The current input type is a sequence of that `Item` type.
   ///
   /// Example: `u8` for `&[u8]` or `char` for `&str`
   type Item;
 
+  /// 主要是获取输入内容满足给定条件返回true的第一个元素，同时将这个输入当前位置返回；
+  /// 不过若是匹配整个输入仍没有得到满足条件的元素，则会返回Incomplete(面向的是持续输入版本streaming version)
+  ///
   /// Looks for the first element of the input type for which the condition returns true,
   /// and returns the input up to this position.
   ///
@@ -495,6 +503,9 @@ pub trait InputTakeAtPosition: Sized {
   where
     P: Fn(Self::Item) -> bool;
 
+  /// 主要是获取输入内容满足给定条件返回true的第一个元素，同时将这个输入当前位置返回；
+  /// 不过若是匹配整个输入仍没有得到满足条件的元素，则会返回整个内容(面向的是complete version)
+  ///
   /// Looks for the first element of the input type for which the condition returns true,
   /// and returns the input up to this position.
   ///
@@ -521,6 +532,9 @@ pub trait InputTakeAtPosition: Sized {
     P: Fn(Self::Item) -> bool;
 }
 
+/// 实现InputTakeAtPosition的类型：需要能够计算长度(InputLength) + 输入内容支持迭代(InputIter) + 支持take(InputTake)
+/// + 提供了InputTakeAtPosition和Compare的默认实现(UnspecializedInput)
+///
 impl<T: InputLength + InputIter + InputTake + Clone + UnspecializedInput> InputTakeAtPosition
   for T
 {
@@ -530,9 +544,9 @@ impl<T: InputLength + InputIter + InputTake + Clone + UnspecializedInput> InputT
   where
     P: Fn(Self::Item) -> bool,
   {
-    match self.position(predicate) {
-      Some(n) => Ok(self.take_split(n)),
-      None => Err(Err::Incomplete(Needed::new(1))),
+    match self.position(predicate) {                      // 根据判断条件predicate获取满足的输入item的位置
+      Some(n) => Ok(self.take_split(n)),     // 得到满足条件item的位置，并使用take_split(n),输出(满足条件item,输入内容剩余部分)
+      None => Err(Err::Incomplete(Needed::new(1))),    // 未得到满足条件的item直接返回Incomplete
     }
   }
 
@@ -544,10 +558,10 @@ impl<T: InputLength + InputIter + InputTake + Clone + UnspecializedInput> InputT
   where
     P: Fn(Self::Item) -> bool,
   {
-    match self.position(predicate) {
-      Some(0) => Err(Err::Error(E::from_error_kind(self.clone(), e))),
-      Some(n) => Ok(self.take_split(n)),
-      None => Err(Err::Incomplete(Needed::new(1))),
+    match self.position(predicate) { // 根据判断条件predicate获取满足的输入item的位置
+      Some(0) => Err(Err::Error(E::from_error_kind(self.clone(), e))), // 当位置=0时返回Error(输入内容可能为空)
+      Some(n) => Ok(self.take_split(n)), // 得到满足条件item的位置，并使用take_split(n),输出(满足条件item,输入内容剩余部分)
+      None => Err(Err::Incomplete(Needed::new(1))), // 未得到满足条件的item直接返回Incomplete
     }
   }
 
@@ -558,9 +572,9 @@ impl<T: InputLength + InputIter + InputTake + Clone + UnspecializedInput> InputT
   where
     P: Fn(Self::Item) -> bool,
   {
-    match self.split_at_position(predicate) {
-      Err(Err::Incomplete(_)) => Ok(self.take_split(self.input_len())),
-      res => res,
+    match self.split_at_position(predicate) { // 根据判断条件predicate获取满足的输入item的位置
+      Err(Err::Incomplete(_)) => Ok(self.take_split(self.input_len())), // 若是整个内容都没有满足predicate的item，则直接返回整个内容
+      res => res, // 返回满足条件的内容
     }
   }
 
@@ -573,18 +587,20 @@ impl<T: InputLength + InputIter + InputTake + Clone + UnspecializedInput> InputT
     P: Fn(Self::Item) -> bool,
   {
     match self.split_at_position1(predicate, e) {
-      Err(Err::Incomplete(_)) => {
-        if self.input_len() == 0 {
+      Err(Err::Incomplete(_)) => {    // 当没有匹配的item存在时
+        if self.input_len() == 0 {    // 若是空内容，则返回error
           Err(Err::Error(E::from_error_kind(self.clone(), e)))
-        } else {
+        } else {                      // 否则返回整个内容
           Ok(self.take_split(self.input_len()))
         }
       }
-      res => res,
+      res => res,          // 返回满足条件的内容
     }
   }
 }
 
+/// &[u8] 实现InputTakeAtPosition
+///
 impl<'a> InputTakeAtPosition for &'a [u8] {
   type Item = u8;
 
@@ -592,7 +608,7 @@ impl<'a> InputTakeAtPosition for &'a [u8] {
   where
     P: Fn(Self::Item) -> bool,
   {
-    match self.iter().position(|c| predicate(*c)) {
+    match self.iter().position(|c| predicate(*c)) { // 遍历[u8]的iterator获取满足条件item的位置
       Some(i) => Ok(self.take_split(i)),
       None => Err(Err::Incomplete(Needed::new(1))),
     }
