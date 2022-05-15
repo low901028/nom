@@ -14,6 +14,7 @@ use crate::lib::std::string::String;
 #[cfg(feature = "alloc")]
 use crate::lib::std::vec::Vec;
 
+/// 计算input的长度
 /// Abstract method to calculate the input length
 pub trait InputLength {
   /// Calculates the input length, as indicated by its name,
@@ -21,6 +22,7 @@ pub trait InputLength {
   fn input_len(&self) -> usize;
 }
 
+/// 计算切片&[T]的长度
 impl<'a, T> InputLength for &'a [T] {
   #[inline]
   fn input_len(&self) -> usize {
@@ -28,6 +30,7 @@ impl<'a, T> InputLength for &'a [T] {
   }
 }
 
+/// 计算&str的长度
 impl<'a> InputLength for &'a str {
   #[inline]
   fn input_len(&self) -> usize {
@@ -35,15 +38,17 @@ impl<'a> InputLength for &'a str {
   }
 }
 
+/// 计算位输入的长度
 impl<'a> InputLength for (&'a [u8], usize) {
   #[inline]
   fn input_len(&self) -> usize {
     //println!("bit input length for ({:?}, {}):", self.0, self.1);
     //println!("-> {}", self.0.len() * 8 - self.1);
-    self.0.len() * 8 - self.1
+    self.0.len() * 8 - self.1  // 默认长度使用byte计算，当计算位长度时 需要进行转换*8
   }
 }
 
+/// 计算slices间的offset
 /// Useful functions to calculate the offset between slices and show a hexdump of a slice
 pub trait Offset {
   /// Offset between the first byte of self and the first byte of the argument
@@ -86,6 +91,7 @@ impl<'a> Offset for &'a str {
   }
 }
 
+/// 用于帮助指定的类型 转为字节序列的形式
 /// Helper trait for types that can be viewed as a byte slice
 pub trait AsBytes {
   /// Casts the input type to a byte slice
@@ -120,6 +126,21 @@ impl AsBytes for [u8] {
   }
 }
 
+/// 声明宏：
+/// impl <'a> AsBytes for &'a [u8; N] {
+///   #[inline(always)]
+///   fn as_bytes(&self) -> &[u8] {
+///      *self
+///   }
+/// }
+///
+/// impl AsBytes for [u8; N] {
+///   #[inline(always)]
+///   fn as_bytes(&self) -> &[u8] {
+///      self
+///   }
+///}
+///
 macro_rules! as_bytes_array_impls {
   ($($N:expr)+) => {
     $(
@@ -147,6 +168,7 @@ as_bytes_array_impls! {
     30 31 32
 }
 
+///
 /// Transforms common types to a char for basic token parsing
 pub trait AsChar {
   /// makes a char from self
@@ -298,19 +320,20 @@ impl<'a> AsChar for &'a char {
   }
 }
 
+/// 针对输入input类型的公共iterator迭代器
 /// Abstracts common iteration operations on the input type
 pub trait InputIter {
   /// The current input type is a sequence of that `Item` type.
   ///
   /// Example: `u8` for `&[u8]` or `char` for `&str`
-  type Item;
+  type Item;   // 元素类型
   /// An iterator over the input type, producing the item and its position
   /// for use with [Slice]. If we're iterating over `&str`, the position
   /// corresponds to the byte index of the character
-  type Iter: Iterator<Item = (usize, Self::Item)>;
+  type Iter: Iterator<Item = (usize, Self::Item)>; // 输入类型的序列slice中item及其位置
 
   /// An iterator over the input type, producing the item
-  type IterElem: Iterator<Item = Self::Item>;
+  type IterElem: Iterator<Item = Self::Item>; // 输入类型中的item
 
   /// Returns an iterator over the elements and their byte offsets
   fn iter_indices(&self) -> Self::Iter;
@@ -319,19 +342,21 @@ pub trait InputIter {
   /// Finds the byte position of the element
   fn position<P>(&self, predicate: P) -> Option<usize>
   where
-    P: Fn(Self::Item) -> bool;
+    P: Fn(Self::Item) -> bool;  // 当前元素字节化的位置
   /// Get the byte offset from the element's position in the stream
-  fn slice_index(&self, count: usize) -> Result<usize, Needed>;
+  fn slice_index(&self, count: usize) -> Result<usize, Needed>; // 获取当前元素的字节offset
 }
 
+/// 针对input是slice的操作
 /// Abstracts slicing operations
 pub trait InputTake: Sized {
   /// Returns a slice of `count` bytes. panics if count > length
-  fn take(&self, count: usize) -> Self;
+  fn take(&self, count: usize) -> Self;  // 获取指定count字节的slice；一旦count超过了字节本身的长度会panic
   /// Split the stream at the `count` byte offset. panics if count > length
-  fn take_split(&self, count: usize) -> (Self, Self);
+  fn take_split(&self, count: usize) -> (Self, Self); // 根据指定的字节offset:count进行split; 注意count>length会panic
 }
 
+///
 impl<'a> InputIter for &'a [u8] {
   type Item = u8;
   type Iter = Enumerate<Self::IterElem>;
@@ -427,6 +452,7 @@ impl<'a> InputTake for &'a str {
   }
 }
 
+/// 用于InputTakeAtPosition和Compare的默认实现
 /// Dummy trait used for default implementations (currently only used for `InputTakeAtPosition` and `Compare`).
 ///
 /// When implementing a custom input type, it is possible to use directly the
@@ -1107,6 +1133,21 @@ macro_rules! slice_ranges_impl {
 slice_ranges_impl! {str}
 slice_ranges_impl! {[T]}
 
+/// 声明宏：[u8;N] 计算数组长度
+/// impl InputLength for [u8; N] {
+///     #[inline]
+///     fn input_len(&self) -> usize {
+///         self.len()
+///     }
+/// }
+///
+///
+/// impl<'a> InputLength for &'a [u8; N] {
+///     #[inline]
+///     fn input_len(&self) -> usize {
+///         self.len()
+///     }
+/// }
 macro_rules! array_impls {
   ($($N:expr)+) => {
     $(
@@ -1193,57 +1234,66 @@ array_impls! {
     30 31 32
 }
 
+/// 对现有的Extend进行扩展： 以支持构建可修改的切片
+///
 /// Abstracts something which can extend an `Extend`.
 /// Used to build modified input slices in `escaped_transform`
 pub trait ExtendInto {
   /// The current input type is a sequence of that `Item` type.
   ///
   /// Example: `u8` for `&[u8]` or `char` for `&str`
+  /// 指定当前切片中item的类型
   type Item;
 
+  /// 用于代表扩展的输出类型
   /// The type that will be produced
   type Extender;
 
+  /// 为当前类型创建一个Extend
   /// Create a new `Extend` of the correct type
   fn new_builder(&self) -> Self::Extender;
   /// Accumulate the input into an accumulator
+  /// 使用累加器来记录输入input
   fn extend_into(&self, acc: &mut Self::Extender);
 }
 
+/// 扩展针对[u8]的可修改切片
 #[cfg(feature = "alloc")]
 impl ExtendInto for [u8] {
-  type Item = u8;
-  type Extender = Vec<u8>;
+  type Item = u8;           // 切片类型
+  type Extender = Vec<u8>;  // 输出的可扩展的类型
 
   #[inline]
-  fn new_builder(&self) -> Vec<u8> {
+  fn new_builder(&self) -> Vec<u8> {  // 构建一个Vec
     Vec::new()
   }
   #[inline]
-  fn extend_into(&self, acc: &mut Vec<u8>) {
-    acc.extend(self.iter().cloned());
+  fn extend_into(&self, acc: &mut Vec<u8>) {  // 将当前需要扩展的内容添加到&mut Vec<u8>
+    acc.extend(self.iter().cloned());  // 将输入扩展到累加器中，同样需要原有内容的所有权问题：此处使用cloned
   }
 }
 
+/// 扩展针对&[u8]的可修改切片
 #[cfg(feature = "alloc")]
 impl ExtendInto for &[u8] {
-  type Item = u8;
-  type Extender = Vec<u8>;
+  type Item = u8;           // 切片中元素的类型
+  type Extender = Vec<u8>;  // 扩展后输出的类型
 
   #[inline]
-  fn new_builder(&self) -> Vec<u8> {
+  fn new_builder(&self) -> Vec<u8> {  // 构建一个Vec<u8>用于接收u8元素
     Vec::new()
   }
   #[inline]
-  fn extend_into(&self, acc: &mut Vec<u8>) {
-    acc.extend_from_slice(self);
+  fn extend_into(&self, acc: &mut Vec<u8>) { // 将当前内容添加到扩展的类型: &mut Vec<u8>
+    acc.extend_from_slice(self); // 此时扩展涉及的所有权：因为是引用类型，只是引用不会造成所有权move
   }
 }
 
+/// 针对str的扩展
 #[cfg(feature = "alloc")]
 impl ExtendInto for str {
-  type Item = char;
-  type Extender = String;
+  type Item = char;       // 元素类型：char
+  type Extender = String; // 扩展输出类型
 
   #[inline]
   fn new_builder(&self) -> String {
@@ -1255,6 +1305,7 @@ impl ExtendInto for str {
   }
 }
 
+// 针对&str的扩展
 #[cfg(feature = "alloc")]
 impl ExtendInto for &str {
   type Item = char;
@@ -1270,6 +1321,7 @@ impl ExtendInto for &str {
   }
 }
 
+/// 针对char的扩展： 将char添加到String中
 #[cfg(feature = "alloc")]
 impl ExtendInto for char {
   type Item = char;
@@ -1285,6 +1337,7 @@ impl ExtendInto for char {
   }
 }
 
+/// 一个赋值的帮助trait: 用于将number -> uszie，并支持32bits和64bits的指针
 /// Helper trait to convert numbers to usize.
 ///
 /// By default, usize implements `From<u8>` and `From<u16>` but not
@@ -1296,6 +1349,7 @@ pub trait ToUsize {
   fn to_usize(&self) -> usize;
 }
 
+/// u8 -> usize
 impl ToUsize for u8 {
   #[inline]
   fn to_usize(&self) -> usize {
@@ -1303,6 +1357,7 @@ impl ToUsize for u8 {
   }
 }
 
+/// u16 -> usize
 impl ToUsize for u16 {
   #[inline]
   fn to_usize(&self) -> usize {
@@ -1310,6 +1365,7 @@ impl ToUsize for u16 {
   }
 }
 
+/// usize -> usize
 impl ToUsize for usize {
   #[inline]
   fn to_usize(&self) -> usize {
@@ -1317,6 +1373,8 @@ impl ToUsize for usize {
   }
 }
 
+/// 针对32bits和64bits指针：主要由于不同的系统平台进行u32和u64转换可能存在问题
+/// u32->usize
 #[cfg(any(target_pointer_width = "32", target_pointer_width = "64"))]
 impl ToUsize for u32 {
   #[inline]
@@ -1325,6 +1383,7 @@ impl ToUsize for u32 {
   }
 }
 
+/// 针对64bits
 #[cfg(target_pointer_width = "64")]
 impl ToUsize for u64 {
   #[inline]
@@ -1390,6 +1449,7 @@ impl<I> ErrorConvert<error::VerboseError<(I, usize)>> for error::VerboseError<I>
   }
 }
 
+/// 将字节序列采用十六进制输出
 #[cfg(feature = "std")]
 #[cfg_attr(feature = "docsrs", doc(cfg(feature = "std")))]
 /// Helper trait to show a byte slice as a hex dump
