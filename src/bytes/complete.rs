@@ -346,6 +346,8 @@ where
   }
 }
 
+/// 根据指定匹配模式获取尽可能长的输入序列，但不包括满足模式当前内容
+///
 /// Returns the longest input slice (if any) till a predicate is met.
 ///
 /// The parser will return the longest slice till the given predicate *(a function that
@@ -373,6 +375,7 @@ where
 {
   move |i: Input| i.split_at_position_complete(|c| cond(c))
 }
+
 
 /// Returns the longest (at least 1) input slice till a predicate is met.
 ///
@@ -408,6 +411,9 @@ where
   }
 }
 
+/// 根据指定获取输入内容的前N个item
+/// 若是输入内容长度<指定需要获取item的个数， 则会Error: Err(Err::Error((_, ErrorKind::Eof)))
+///
 /// Returns an input slice containing the first N input elements (Input[..N]).
 ///
 /// It will return `Err(Err::Error((_, ErrorKind::Eof)))` if the input is shorter than the argument.
@@ -425,6 +431,8 @@ where
 /// assert_eq!(take6("short"), Err(Err::Error(Error::new("short", ErrorKind::Eof))));
 /// assert_eq!(take6(""), Err(Err::Error(Error::new("", ErrorKind::Eof))));
 /// ```
+///
+/// 不过需要主要输入内容的类型，获取的时候也是采用同样的类型编码，并确保内容的完整性
 ///
 /// The units that are taken will depend on the input type. For example, for a
 /// `&str` it will take a number of `char`'s, whereas for a `&[u8]` it will
@@ -451,6 +459,8 @@ where
   }
 }
 
+/// 获取模式匹配的第一个item，若是没有满足模式的item存在，则会出现Error： Err(Err::Error((_, ErrorKind::TakeUntil)))
+///
 /// Returns the input slice up to the first occurrence of the pattern.
 ///
 /// It doesn't consume the pattern. It will return `Err(Err::Error((_, ErrorKind::TakeUntil)))`
@@ -486,6 +496,9 @@ where
   }
 }
 
+/// 获取模式匹配的第一个非空item，并且剩余部分也非空
+/// 若是没有满足模式的item则会Error： Err(Err::Error((_, ErrorKind::TakeUntil)))
+///
 /// Returns the non empty input slice up to the first occurrence of the pattern.
 ///
 /// It doesn't consume the pattern. It will return `Err(Err::Error((_, ErrorKind::TakeUntil)))`
@@ -523,10 +536,14 @@ where
   }
 }
 
-/// Matches a byte string with escaped characters.
+/// 匹配转义字符
 ///
+/// Matches a byte string with escaped characters.
+///  与非控制字符的普通字符进行匹配
 /// * The first argument matches the normal characters (it must not accept the control character)
+/// 指定的控制字符
 /// * The second argument is the control character (like `\` in most languages)
+/// 匹配的转义字符
 /// * The third argument matches the escaped characters
 /// # Example
 /// ```
@@ -569,7 +586,7 @@ where
     while i.input_len() > 0 {
       let current_len = i.input_len();
 
-      match normal.parse(i.clone()) {
+      match normal.parse(i.clone()) {  // 匹配非控制字符的正常字符
         Ok((i2, _)) => {
           // return if we consumed everything or if the normal parser
           // does not consume anything
@@ -623,6 +640,7 @@ where
     Ok((input.slice(input.input_len()..), input))
   }
 }
+
 
 /// Matches a byte string with escaped characters.
 ///
