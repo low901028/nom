@@ -19,7 +19,7 @@ use crate::lib::std::vec::Vec;
 /// Offset： 计算输入内容某个item的offset
 /// AsBytes：输入内容能够以byte形式呈现
 /// AsChar：输入内容类型以char形式呈现
-/// 等等
+/// ...
 
 
 /// 计算input的长度
@@ -780,6 +780,9 @@ pub trait Compare<T> {
   /// by lowercasing both strings and comparing
   /// the result. This is a temporary solution until
   /// a better one appears
+  ///
+  /// 模式匹配忽略大小写
+  ///
   fn compare_no_case(&self, t: T) -> CompareResult;
 }
 

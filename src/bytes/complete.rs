@@ -1,4 +1,5 @@
 //! Parsers recognizing bytes streams, complete input version
+/// 针对字节流的解析，输入内容: complete-version
 
 use crate::error::ErrorKind;
 use crate::error::ParseError;
@@ -9,6 +10,9 @@ use crate::traits::{
   Compare, CompareResult, FindSubstring, FindToken, InputIter, InputLength, InputTake,
   InputTakeAtPosition, Slice, ToUsize,
 };
+
+/// 识别模式： 输入数据与指定的tag内容进行比较，并返回匹配的内容
+/// 不过若是没有匹配指定tag的内容 则会返回Error： Err(Err::Error((_, ErrorKind::Tag)))
 
 /// Recognizes a pattern
 ///
@@ -29,6 +33,11 @@ use crate::traits::{
 /// assert_eq!(parser("Something"), Err(Err::Error(Error::new("Something", ErrorKind::Tag))));
 /// assert_eq!(parser(""), Err(Err::Error(Error::new("", ErrorKind::Tag))));
 /// ```
+///
+/// 指定tag内容，并返回一个根据针对输入input进行模式匹配的匿名函数
+/// 并且输入的内容是支持take操作，并能进行输入内容中item可比较的；
+/// 不过tag也需要是长度可知的并且能clone
+///
 pub fn tag<T, Input, Error: ParseError<Input>>(
   tag: T,
 ) -> impl Fn(Input) -> IResult<Input, Input, Error>
@@ -50,6 +59,10 @@ where
   }
 }
 
+/// 模式识别： 不区分大小
+/// 输入数据与指定的tag内容进行比较，并返回匹配的内容
+/// 不过若是没有匹配指定tag的内容 则会返回Error： Err(Err::Error((_, ErrorKind::Tag)))
+///
 /// Recognizes a case insensitive pattern.
 ///
 /// The input data will be compared to the tag combinator's argument and will return the part of
@@ -93,6 +106,9 @@ where
   }
 }
 
+/// 解析直到满足指定的条件：解析器会返回满足指定条件前的最长序列， 但是解析器并不会销毁满足条件的字符
+/// 若是模式没有被匹配，则会返回Error: Err::Error(("", ErrorKind::IsNot))
+///
 /// Parse till certain characters are met.
 ///
 /// The parser will return the longest slice till one of the characters of the combinator's argument are met.
@@ -114,6 +130,11 @@ where
 /// assert_eq!(not_space("Nospace"), Ok(("", "Nospace")));
 /// assert_eq!(not_space(""), Err(Err::Error(Error::new("", ErrorKind::IsNot))));
 /// ```
+///
+/// 用于匹配输入内容与指定匹配模式内容相反，直至满足指定的匹配条件，并将到满足条件字符前的内容返回
+/// 输入内容Input: 满足InputTakeAtPosition
+/// 匹配模式：满足FindToken，并且操作item是InputTakeAtPosition::Item
+///
 pub fn is_not<T, Input, Error: ParseError<Input>>(
   arr: T,
 ) -> impl Fn(Input) -> IResult<Input, Input, Error>
@@ -127,6 +148,9 @@ where
   }
 }
 
+/// 返回满足指定模式的最长匹配的序列
+/// 若是没有满足匹配模式的内容Error：Err(Err::Error((_, ErrorKind::IsA)))
+///
 /// Returns the longest slice of the matches the pattern.
 ///
 /// The parser will return the longest slice consisting of the characters in provided in the
@@ -148,6 +172,9 @@ where
 /// assert_eq!(hex("D15EA5E"), Ok(("", "D15EA5E")));
 /// assert_eq!(hex(""), Err(Err::Error(Error::new("", ErrorKind::IsA))));
 /// ```
+///
+/// 与is_not的实现效果类似
+///
 pub fn is_a<T, Input, Error: ParseError<Input>>(
   arr: T,
 ) -> impl Fn(Input) -> IResult<Input, Input, Error>
@@ -161,6 +188,9 @@ where
   }
 }
 
+/// 根据指定的条件predicate一直匹配满足的最长的序列
+/// - 根据给定的函数结合输入并输出bool结果代表匹配结果
+///
 /// Returns the longest input slice (if any) that matches the predicate.
 ///
 /// The parser will return the longest slice that matches the given predicate *(a function that
@@ -180,6 +210,8 @@ where
 /// assert_eq!(alpha(b"latin"), Ok((&b""[..], &b"latin"[..])));
 /// assert_eq!(alpha(b""), Ok((&b""[..], &b""[..])));
 /// ```
+/// condition函数：用于输入内容的模式匹配条件判断函数结果返回bool
+///
 pub fn take_while<F, Input, Error: ParseError<Input>>(
   cond: F,
 ) -> impl Fn(Input) -> IResult<Input, Input, Error>
@@ -190,6 +222,8 @@ where
   move |i: Input| i.split_at_position_complete(|c| !cond(c))
 }
 
+///
+///
 /// Returns the longest (at least 1) input slice that matches the predicate.
 ///
 /// The parser will return the longest slice that matches the given predicate *(a function that
@@ -246,6 +280,9 @@ where
 /// assert_eq!(short_alpha(b"ed"), Err(Err::Error(Error::new(&b"ed"[..], ErrorKind::TakeWhileMN))));
 /// assert_eq!(short_alpha(b"12345"), Err(Err::Error(Error::new(&b"12345"[..], ErrorKind::TakeWhileMN))));
 /// ```
+/// 根据指定匹配模式获取满足[m,n]的匹配item
+/// 若是未匹配的话 则输出Error: Err::Error((_, ErrorKind::TakeWhileMN))
+///
 pub fn take_while_m_n<F, Input, Error: ParseError<Input>>(
   m: usize,
   n: usize,
@@ -258,11 +295,11 @@ where
   move |i: Input| {
     let input = i;
 
-    match input.position(|c| !cond(c)) {
+    match input.position(|c| !cond(c)) { // 获取最长满足匹配条件的内容，并且确保开始位置位于[m,n]
       Some(idx) => {
         if idx >= m {
           if idx <= n {
-            let res: IResult<_, _, Error> = if let Ok(index) = input.slice_index(idx) {
+            let res: IResult<_, _, Error> = if let Ok(index) = input.slice_index(idx) { // 当前内容在字节流序列位置的offset 并使用take满足需求的最长部分内容
               Ok(input.take_split(index))
             } else {
               Err(Err::Error(Error::from_error_kind(
@@ -271,7 +308,7 @@ where
               )))
             };
             res
-          } else {
+          } else { // 若是超过指定范围的最大值n，则取n的位置offset； 在调用take获取满足模式的最长内容
             let res: IResult<_, _, Error> = if let Ok(index) = input.slice_index(n) {
               Ok(input.take_split(index))
             } else {
@@ -287,17 +324,17 @@ where
           Err(Err::Error(Error::from_error_kind(input, e)))
         }
       }
-      None => {
+      None => {  // 若是输入内容全部满足匹配模式
         let len = input.input_len();
-        if len >= n {
-          match input.slice_index(n) {
-            Ok(index) => Ok(input.take_split(index)),
+        if len >= n {   // 若是输入内容超过指定范围的最大值n
+          match input.slice_index(n) {  // 只取到到n的内容
+            Ok(index) => Ok(input.take_split(index)), // 执行take
             Err(_needed) => Err(Err::Error(Error::from_error_kind(
               input,
               ErrorKind::TakeWhileMN,
             ))),
           }
-        } else if len >= m && len <= n {
+        } else if len >= m && len <= n {  // 当输入内容属于[m,n]; 则直接输出[len,..]
           let res: IResult<_, _, Error> = Ok((input.slice(len..), input));
           res
         } else {

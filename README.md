@@ -9,6 +9,12 @@
 
 > nom是一个使用rust实现的组合式解析器，同时也确保了安全的同时达到了性能最大化和资源损耗最小化。
 
+注意 
+> > traits.rs： 主要是定义了针对输入类型进行类型转换(byte字节/char字符/number数字)或辅助输入内容的功能，以便组合器conbinator使用;
+> > charactor/bytes/bits/number：定义了面向char字符/byte字节/bit位/number数字等匹配模式； 方便组合器使用的； 主要会面向两种输入complete-version和streaming-version
+> > combinator：组合charactor/bytes/bits/number等中定义匹配模式；
+> > multi: 将组合的内容提供给parser进行解析
+
 nom is a parser combinators library written in Rust. Its goal is to provide tools
 to build safe parsers without compromising the speed or memory consumption. To
 that end, it uses extensively Rust's *strong typing* and *memory safety* to produce
